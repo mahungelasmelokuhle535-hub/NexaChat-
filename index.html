@@ -1209,8 +1209,7 @@ async function sendMsg(){
       return;
     }
     // Build messages
-    var sysPrompt='[SYSTEM INSTRUCTIONS]\n'+buildSys()+'\n[END SYSTEM]\n\nPlease confirm you understand.';
-    var orMessages=[{role:'user',content:sysPrompt},{role:'assistant',content:'Understood. I am NexaChat, ready to help!'}];
+    var orMessages=[{role:'system',content:buildSys()}];
     hist.forEach(function(m){orMessages.push(m);});
 
     // ── Pick model based on mode ─────────────
