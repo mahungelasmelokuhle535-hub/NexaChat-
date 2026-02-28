@@ -647,16 +647,16 @@ input,textarea{font-family:var(--font);-webkit-appearance:none;}
       <svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
     </div>
     <div class="apikey-title">Connect NexaChat</div>
-    <div class="apikey-sub">Enter your free OpenRouter API key to start.<br>Get one at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> &mdash; it's free, no card needed.</div>
+    <div class="apikey-sub">Enter your free Gemini API key to start.<br>Get one at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> &mdash; it's free, no card needed.</div>
     <div class="apikey-err" id="apikey-err">Incorrect API key. Please check and try again.</div>
     <label class="apikey-label">API Key</label>
     <div class="apikey-input-wrap">
-      <input class="apikey-input" id="apikey-input" type="password" placeholder="sk-or-v1-..." onkeydown="if(event.key==='Enter')saveApiKey()">
+      <input class="apikey-input" id="apikey-input" type="password" placeholder="AIza..." onkeydown="if(event.key==='Enter')saveApiKey()">
       <button class="apikey-eye" id="apikey-eye" onclick="toggleKeyVis()" title="Show/hide key">
         <svg viewBox="0 0 24 24" id="eye-icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
     </div>
-    <div class="apikey-hint">Your OpenRouter key is stored locally on this device only. Get a free key at openrouter.ai</div>
+    <div class="apikey-hint">Your Gemini key is stored locally on this device only. Get a free key at aistudio.google.com</div>
     <button class="apikey-btn" onclick="saveApiKey()">Start Chatting &#x2192;</button>
     <div class="apikey-note">NexaChat v1.00 by Smelokuhle Mahungela &bull; Free via OpenRouter</div>
   </div>
@@ -911,16 +911,16 @@ input,textarea{font-family:var(--font);-webkit-appearance:none;}
       </div>
       <div class="set-row" style="flex-direction:column;align-items:stretch;gap:8px;">
         <div style="display:flex;align-items:center;justify-content:space-between">
-          <label style="font-size:12px;color:var(--tx3);font-weight:500">OpenRouter API Key</label>
+          <label style="font-size:12px;color:var(--tx3);font-weight:500">Gemini API Key</label>
           <span style="font-size:10px;background:rgba(var(--ac-rgb),.12);color:var(--ac);padding:2px 7px;border-radius:99px;font-weight:600">LIVE</span>
         </div>
         <div style="position:relative">
-          <input class="modal-input" id="dev-apikey-input" type="password" style="margin:0;padding-right:44px;font-family:monospace;letter-spacing:0.5px" placeholder="sk-or-v1-..." oninput="liveUpdateKey(this.value)">
+          <input class="modal-input" id="dev-apikey-input" type="password" style="margin:0;padding-right:44px;font-family:monospace;letter-spacing:0.5px" placeholder="AIza..." oninput="liveUpdateKey(this.value)">
           <button onclick="toggleDevKeyVis()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px">
             <svg viewBox="0 0 24 24" id="dev-eye" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
-        <div style="font-size:11px;color:var(--tx3);line-height:1.5">Key saved locally. Get yours free at <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--ac2)">openrouter.ai/keys</a></div>
+        <div style="font-size:11px;color:var(--tx3);line-height:1.5">Key saved locally. Get yours free at <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--ac2)">aistudio.google.com/apikey</a></div>
       </div>
     </div>
   </div>
@@ -954,7 +954,7 @@ function load(){
   if(!S.mem)S.mem={name:'User',on:true,facts:[]};
   // Auto-clear old Anthropic keys — they won't work with OpenRouter
   var storedKey=localStorage.getItem('nx_apikey')||'';
-  if(storedKey.startsWith('sk-ant')||storedKey.startsWith('sk-ant-')){
+  if(storedKey.startsWith('sk-ant')||storedKey.startsWith('sk-or')){
     localStorage.removeItem('nx_apikey');
   }
 }
@@ -1198,30 +1198,32 @@ async function sendMsg(){
     hist.push({role:'user',content:text});
     var apiKey=localStorage.getItem('nx_apikey')||'';
     if(!apiKey){removeTyping();showApiKeyScreen();S.loading=false;document.getElementById('send-btn').disabled=false;return;}
-    // Build messages — simple and clean
-    var msgs=[{role:'user',content:'You are NexaChat, an AI assistant created by Smelokuhle Mahungela. Be helpful, friendly and concise.'}];
-    hist.forEach(function(m){msgs.push({role:m.role==='ai'?'assistant':'user',content:m.content});});
-    // Call OpenRouter with one reliable free model
-    var res=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+    // Build Gemini messages
+    var geminiMsgs=[];
+    hist.forEach(function(m){
+      geminiMsgs.push({role:m.role==='ai'?'model':'user',parts:[{text:m.content}]});
+    });
+    var systemText='You are NexaChat, a helpful AI assistant created by Smelokuhle Mahungela. Be friendly, helpful and concise.';
+    var res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+apiKey,{
       method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':'Bearer '+apiKey
-      },
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        model:'mistralai/mistral-7b-instruct:free',
-        messages:msgs,
-        max_tokens:1000
+        system_instruction:{parts:[{text:systemText}]},
+        contents:geminiMsgs,
+        generationConfig:{maxOutputTokens:1500,temperature:0.7}
       })
     });
     var data=await res.json();
     removeTyping();
     if(!res.ok){
       var errMsg=data.error&&data.error.message?data.error.message:'Error '+res.status;
-      if(res.status===401||res.status===403){showApiKeyErrToast();}
+      if(res.status===400)errMsg='Invalid API key. Go to Settings and update your Gemini key.';
+      if(res.status===403)errMsg='Invalid API key. Go to Settings and update your Gemini key.';
+      if(res.status===429)errMsg='Too many requests. Wait a moment and try again.';
+      if(res.status===401){showApiKeyErrToast();}
       throw new Error(errMsg);
     }
-    var reply=data.choices&&data.choices[0]&&data.choices[0].message?data.choices[0].message.content:'No response. Try again.';
+    var reply=data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts?data.candidates[0].content.parts[0].text:'No response. Try again.';
     var am={id:'m_'+Date.now(),role:'ai',content:reply};
     chat.messages.push(am);
     appendMsg(am);
@@ -1230,18 +1232,14 @@ async function sendMsg(){
     removeTyping();
     var rawErr=err&&err.message?err.message:'Unknown error';
     var errTxt=rawErr;
-    // Friendly messages for common errors
     if(rawErr.toLowerCase().indexOf('failed to fetch')!==-1||rawErr.toLowerCase().indexOf('networkerror')!==-1||rawErr.toLowerCase().indexOf('load failed')!==-1){
-      errTxt='No connection to OpenRouter. Make sure you are connected to the internet and your API key is entered in Settings.';
-      // Also show API key screen in case key is missing
+      errTxt='Could not reach Gemini. Check your internet connection and try again.';
       if(!localStorage.getItem('nx_apikey'))showApiKeyScreen();
-    } else if(rawErr.indexOf('401')!==-1||rawErr.indexOf('403')!==-1){
-      errTxt='Invalid API key. Go to Settings and update your OpenRouter key.';
+    } else if(rawErr.indexOf('401')!==-1||rawErr.indexOf('403')!==-1||rawErr.indexOf('400')!==-1){
+      errTxt='Invalid Gemini API key. Go to Settings and paste your key from aistudio.google.com/apikey';
       showApiKeyErrToast();
     } else if(rawErr.indexOf('429')!==-1){
       errTxt='Too many requests. Wait a moment and try again.';
-    } else if(rawErr.indexOf('400')!==-1){
-      errTxt='Bad request — try rephrasing your message.';
     }
     var em={id:'m_'+Date.now(),role:'ai',content:'<span style="color:var(--err,#f87171)">&#9888; '+errTxt+'</span>',isError:true};
     var c2=getChat(S.currentId);if(c2)c2.messages.push(em);appendMsg(em);
@@ -1434,7 +1432,7 @@ function saveApiKey(){
   var key=document.getElementById('apikey-input').value.trim();
   var errEl=document.getElementById('apikey-err');
   if(!key){errEl.textContent='Please enter your API key.';errEl.style.display='block';return;}
-  if(!key.startsWith('sk-or')){errEl.textContent='OpenRouter key should start with "sk-or". Please check and try again.';errEl.style.display='block';return;}
+  if(!key.startsWith('AIza')){errEl.textContent='Gemini key should start with "AIza". Please check and try again.';errEl.style.display='block';return;}
   errEl.style.display='none';
   localStorage.setItem('nx_apikey',key);
   hideApiKeyScreen();
