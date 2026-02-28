@@ -1198,78 +1198,33 @@ async function sendMsg(){
     hist.push({role:'user',content:text});
     var apiKey=localStorage.getItem('nx_apikey')||'';
     if(!apiKey){removeTyping();showApiKeyScreen();S.loading=false;document.getElementById('send-btn').disabled=false;return;}
-    // Detect if running from a local file or Claude preview (API calls blocked by browser)
-    var currentHost=window.location.hostname||'';
-    var isBlocked=currentHost===''||currentHost==='localhost'||currentHost.indexOf('claudeusercontent')!==-1||currentHost.indexOf('claude.ai')!==-1;
-    if(isBlocked){
-      removeTyping();
-      var blockedMsg={id:'m_'+Date.now(),role:'ai',isError:true,content:'<div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:12px;padding:14px;line-height:1.7"><b style="color:#fbbf24">&#9888; Open NexaChat from GitHub Pages</b><br><span style="color:var(--tx2);font-size:13px">API calls are blocked in this preview. Open your app at:<br><b style="color:var(--ac)">mahungelasmelokuhle535-hub.github.io/nexachat</b><br>and enter your OpenRouter key there.</span></div>'};
-      var bc=getChat(S.currentId);if(bc)bc.messages.push(blockedMsg);appendMsg(blockedMsg);
-      S.loading=false;document.getElementById('send-btn').disabled=false;
-      return;
+    // Build messages — simple and clean
+    var msgs=[{role:'user',content:'You are NexaChat, an AI assistant created by Smelokuhle Mahungela. Be helpful, friendly and concise.'}];
+    hist.forEach(function(m){msgs.push({role:m.role==='ai'?'assistant':'user',content:m.content});});
+    // Call OpenRouter with one reliable free model
+    var res=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+apiKey
+      },
+      body:JSON.stringify({
+        model:'mistralai/mistral-7b-instruct:free',
+        messages:msgs,
+        max_tokens:1000
+      })
+    });
+    var data=await res.json();
+    removeTyping();
+    if(!res.ok){
+      var errMsg=data.error&&data.error.message?data.error.message:'Error '+res.status;
+      if(res.status===401||res.status===403){showApiKeyErrToast();}
+      throw new Error(errMsg);
     }
-    // Build messages
-    var orMessages=[{role:'system',content:buildSys()}];
-    hist.forEach(function(m){orMessages.push(m);});
-
-    // ── Pick model based on mode ─────────────
-    var mode=S.activeModel||'fast';
-    var headers={'Content-Type':'application/json','Authorization':'Bearer '+apiKey,'HTTP-Referer':'https://nexachat.app','X-Title':'NexaChat'};
-    var reply='';
-
-    if(mode==='image'){
-      // Image generation
-      var imgRes=await fetch('https://openrouter.ai/api/v1/chat/completions',{
-        method:'POST',headers:headers,
-        body:JSON.stringify({model:'black-forest-labs/flux-schnell:free',messages:[{role:'user',content:text}],max_tokens:256})
-      });
-      var imgData=await imgRes.json();removeTyping();
-      if(!imgRes.ok)throw new Error('Image Error: '+(imgData.error&&imgData.error.message?imgData.error.message:'Try a different description'));
-      var imgContent=imgData.choices&&imgData.choices[0]&&imgData.choices[0].message&&imgData.choices[0].message.content;
-      var imgUrl=null;
-      if(imgContent){
-        var um=imgContent.match(/https?:\/\/[^\s"')]+\.(?:png|jpg|jpeg|webp|gif)[^\s"')']*/i);
-        if(um)imgUrl=um[0];
-        if(!imgUrl){var mm=imgContent.match(/!\[.*?\]\(([^)]+)\)/);if(mm)imgUrl=mm[1];}
-      }
-      reply=imgUrl?'<img src="'+imgUrl+'" class="ai-image" alt="Generated image">':( imgContent||'Could not generate image. Try describing something simpler.');
-    } else {
-      // Text models by mode
-      // All reliable free models as one big fallback pool
-      var allFreeModels=[
-        'google/gemma-2-9b-it:free',
-        'mistralai/mistral-7b-instruct:free',
-        'meta-llama/llama-3.2-3b-instruct:free',
-        'meta-llama/llama-3.1-8b-instruct:free',
-        'qwen/qwen-2-7b-instruct:free',
-        'microsoft/phi-3-mini-128k-instruct:free',
-        'meta-llama/llama-3.3-70b-instruct:free',
-        'deepseek/deepseek-r1:free'
-      ];
-      // Power and think get larger models first
-      if(mode==='power'||mode==='think'){
-        allFreeModels=['meta-llama/llama-3.3-70b-instruct:free','deepseek/deepseek-r1:free','google/gemma-2-9b-it:free','mistralai/mistral-7b-instruct:free','meta-llama/llama-3.2-3b-instruct:free','qwen/qwen-2-7b-instruct:free','meta-llama/llama-3.1-8b-instruct:free'];
-      }
-      var maxTokens=mode==='power'?2500:1500;
-      // Try with fallback route first
-      var res=await fetch('https://openrouter.ai/api/v1/chat/completions',{
-        method:'POST',headers:headers,
-        body:JSON.stringify({models:allFreeModels,route:'fallback',max_tokens:maxTokens,messages:orMessages})
-      });
-      var data=await res.json();removeTyping();
-      if(!res.ok){
-        var errMsg='API Error '+res.status+': '+(data.error&&data.error.message?data.error.message:'Request failed');
-        if(res.status===401||res.status===403){errMsg='Invalid API key. Please update it in Settings.';showApiKeyErrToast();}
-        if(res.status===429){errMsg='All free models are busy right now. Wait 10 seconds and try again.';}
-        throw new Error(errMsg);
-      }
-      reply=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'Sorry, I could not get a response.';
-    }
-    var am={id:'m_'+Date.now(),role:'ai',content:reply,isImage:mode==='image'};
+    var reply=data.choices&&data.choices[0]&&data.choices[0].message?data.choices[0].message.content:'No response. Try again.';
+    var am={id:'m_'+Date.now(),role:'ai',content:reply};
     chat.messages.push(am);
-    var st=document.getElementById('stream-toggle');
-    if(st&&st.classList.contains('on'))await streamMsg(am);
-    else appendMsg(am);
+    appendMsg(am);
     autoMem(text);
   }catch(err){
     removeTyping();
